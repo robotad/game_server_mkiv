@@ -1,6 +1,7 @@
 import asyncio
 import socket
 import struct
+import time
 
 import app.config as config
 from app.util import UDPOp
@@ -16,6 +17,7 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
     def __init__(self, data_in_q, server):
         self._data_in_q = data_in_q
         self._server = server
+        log.info("[*] Server-udp: ready")
 
     def connection_made(self, transport):
         self._server._transport = transport
@@ -40,29 +42,51 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
 
 
 class Server:
-    def __init__(self):
-        self._transport = None
-        self._clients = []
-        self.profile_count = 0
-        self.profile_interval = 500
+    BROADCAST_INTERVAL = 0.010
 
-    def broadcast(self, data):
-        self.profile_count += 1
+    def __init__(self, data_in_q):
+        self._transport = None
+        self._data_in_q = data_in_q
+        self._clients = []
+        self._buffer = bytearray(1024)
+        self._buffer_view = memoryview(self._buffer)
+        self._t_sent = time.process_time()
+        self._d_send = 0
+
+    async def process(self):
+        log.info("[ ] Server: starting...")
+        while True:
+            self._process_incoming()
+            if not ((time.process_time() - self._t_sent) + self._d_send) < Server.BROADCAST_INTERVAL:
+                self._process_outgoing()
+            await asyncio.sleep(0)
+
+    def _process_incoming(self):
+        # log.info("[ ] Server: incoming ...")
+        idx = 0
+        while not self._data_in_q.empty():
+            data = self._data_in_q.get_nowait()
+            self._buffer_view[idx:idx+len(data)] = data
+            idx += len(data)
+
+    def _process_outgoing(self):
+        # log.info("[ ] Server: outgoing ...")
+        t_start = time.process_time()
         for client_addr in self._clients:
-            self._transport.sendto(data, client_addr)
+            self._transport.sendto(self._buffer, client_addr)
+        self._d_send = time.process_time() - t_start
+        self._t_sent = time.process_time()
 
 loop = asyncio.get_event_loop()
 data_in_q = asyncio.Queue()
-server = Server()
+server = Server(data_in_q)
 coro = loop.create_datagram_endpoint(
     protocol_factory=lambda: UdpReaderProtocol(data_in_q, server),
     local_addr=(config.UDP_EXTERNAL_HOST, config.UDP_RECV_PORT),
 )
 
-log.info("[     ] Server: starting...")
+loop.create_task(server.process())
 transport, protocol = loop.run_until_complete(coro)
-
-
 try:
     loop.run_forever()
 except KeyboardInterrupt:
