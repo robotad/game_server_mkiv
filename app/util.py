@@ -36,6 +36,7 @@ def prepare_update_packet(buffer, sender_id, resource_list=None, resource_byte_m
 
     # buffer[5-8] - resource byte length
     struct.pack_into(config.ENDIAN + 'I', buffer, 5, idx)
+    return idx
 
 
 def unpack_update(buffer, resource_map):
@@ -43,13 +44,15 @@ def unpack_update(buffer, resource_map):
     sender_id = struct.unpack_from(config.ENDIAN + 'I', buffer, 1)[0]
     size = struct.unpack_from(config.ENDIAN + 'I', buffer, 5)[0]
 
+    print("[{}:".format(sender_id), end='')
     idx = 9
     while idx < size:
         type = buffer[idx]
         size = PACKET_SIZE[type]
         resource_id = struct.unpack_from(config.ENDIAN + 'I', buffer, idx+1)[0]
-        print("udp_op={}, sender_id={}, size={}, resource_id={}".format(udp_op, sender_id, size, resource_id))
+        print("{}".format(resource_id), end='', flush=True)
         resource_map[resource_id] = buffer[idx : idx+size]
         idx += size
+    print("]", end='')
 
     return udp_op, sender_id, size

@@ -72,31 +72,31 @@ class Server:
         self._profile_log = ""
 
     def _process_incoming(self):
-        while not self._data_in_q.empty():
+        if not self._data_in_q.empty():
             if self._is_profiling:
                 print(">", end='', flush=True)
             data = self._data_in_q.get_nowait()
-            print("data={}".format(data))
-            util.unpack_update(data, self._resource_map)
-            print("self._resource_map={}".format(self._resource_map))
-
-        util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
+            udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
+            if size > 0:
+                self._buffer_size = util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
 
     async def process_outgoing(self):
         while True:
             # await asyncio.sleep(0)
             await asyncio.sleep(Server.BROADCAST_INTERVAL - ((time.process_time() - self._t_sent) + self._d_send))
             self._process_incoming()
-            t_start = time.process_time()
-            client_ids = list(self._clients.keys())
-            for client_id in client_ids:
-                client_addr = self._clients[client_id]
-                if self._is_profiling:
-                    print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
-                self._transport.sendto(self._buffer, client_addr)
-                await asyncio.sleep(0)
-            self._d_send = time.process_time() - t_start
-            self._t_sent = time.process_time()
+            if self._buffer_size > 0:
+                t_start = time.process_time()
+                client_ids = list(self._clients.keys())
+                for client_id in client_ids:
+                    client_addr = self._clients[client_id]
+                    if self._is_profiling:
+                        print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
+                    self._transport.sendto(self._buffer, client_addr)
+                    print("{}>".format(self._buffer_size), end='')
+                    await asyncio.sleep(0)
+                self._d_send = time.process_time() - t_start
+                self._t_sent = time.process_time()
 
 
 loop = asyncio.get_event_loop()

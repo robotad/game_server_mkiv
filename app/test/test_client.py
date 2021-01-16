@@ -49,7 +49,7 @@ class Client:
         self.sample_packet = bytearray(1 + 4 + 4 + Player.RESOURCE_PACKET_SIZE)
         player = Player(id=self._id,
                         health=0,
-                        x=0,y=0,z=0)
+                        x=1,y=2,z=3)
         util.prepare_update_packet(self.sample_packet, self._id, resource_list=[player])
         print("packet({})={}".format(self._id, self.sample_packet))
         self._recv_q = asyncio.Queue()
@@ -82,11 +82,12 @@ class Client:
             while not self._recv_q.empty():
                 print(config.TEXT_GREEN + "<{}>".format(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
                 data = self._recv_q.get_nowait()
+                print("data({})={}".format(self._id, data[0:30]), end='')
                 util.unpack_update(data, resource_map)
 
-        print(resource_map, flush=True)
+        print("client({}) resource_map={}".format(self._id, resource_map), flush=True)
         if self._id in resource_map:
-            health = struct.unpack_from(config.ENDIAN + 'I', data, 14)[0]
+            health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], 5)[0]
             print("health={}".format(health))
             if health == iteration:
                 return True
@@ -97,7 +98,7 @@ loop = asyncio.get_event_loop()
 
 
 clients = []
-start_client_count = 1
+start_client_count = 0
 max_clients = 1
 
 
