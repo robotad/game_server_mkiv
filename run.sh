@@ -9,7 +9,7 @@ docker rm -f game-server-mkiv
 # LOG_LEVEL - Can be "debug", "info", or "warn"
 # UDP_EXTERNAL_HOST Set the bind host for the server's UDP listener
 # UDP_RECV_PORT - Set the bind port for the server's UDP listener
-DEV_PROFILE="False"
+DEV_PROFILE="True"
 docker run --network unity \
   -e DEV_ASYNC_DEBUG_LOG="False" \
   -e DEV_LOG="True" \

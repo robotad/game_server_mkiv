@@ -6,6 +6,8 @@ from app.util import UDPOp
 from app.state.player.resource import Player
 
 UDP_ADDRESS=("127.0.0.1", 5002)
+OKGREEN = '\033[92m'
+ENDC = '\033[0m'
 
 
 class ClientReaderProtocol(asyncio.DatagramProtocol):
@@ -17,7 +19,6 @@ class ClientReaderProtocol(asyncio.DatagramProtocol):
         self._client._transport = transport
 
     def datagram_received(self, data, addr):
-        print("<", end='', flush=True)
         self._client.receive()
 
 
@@ -41,11 +42,11 @@ class Client:
         print("[*] client({}) sent register data(size='{}') to address='{}'".format(self._id, len(packet), UDP_ADDRESS))
 
     def send_state_update(self):
-        print(str(self._id) + ">", end='', flush=True)
+        print(self._id, end='', flush=True)
         self._transport.sendto(self.sample_packet, UDP_ADDRESS)
 
     def receive(self):
-        print("<" + str(self._id), end='', flush=True)
+        print(OKGREEN + str(self._id) + ENDC, end='', flush=True)
         self._receive_count += 1
 
     def pop_stats(self):
@@ -75,77 +76,69 @@ clients = []
 start_client_count = 10
 max_clients = 80
 
-client = Client(0, 8000)
-coro = loop.create_datagram_endpoint(
-    protocol_factory=lambda: ClientReaderProtocol(client),
-    local_addr=('0.0.0.0', 8000))
-loop.run_until_complete(coro)
-client.register_client()
+
+
+
+
+def add_clients(count):
+    for i in range(0, count):
+        # Add another client
+        port = 8000 + len(clients)
+        client = Client(i, port)
+        coro = loop.create_datagram_endpoint(
+                protocol_factory=lambda: ClientReaderProtocol(client),
+                local_addr=('0.0.0.0', port))
+        loop.run_until_complete(coro)
+
+        # Double attempt to register client, just
+        # in case.
+        client.register_client()
+        client.register_client()
+
+        clients.append(client)
+        time.sleep(.2)
 
 
 async def send_updates():
-    while True:
+    for client in clients:
         client.send_state_update()
-        await asyncio.sleep(10)
+        await asyncio.sleep(0)
 
-loop.create_task(send_updates())
-loop.run_forever()
 
-# def add_clients(count):
-#     for i in range(0, count):
-#         # Add another client
-#         port = 8000 + len(clients)
-#         client = Client(i, port)
-#         coro = loop.create_datagram_endpoint(
-#                 protocol_factory=lambda: ClientReaderProtocol(client),
-#                 local_addr=('0.0.0.0', port))
-#         loop.run_until_complete(coro)
-#
-#         # Double attempt to register client, just
-#         # in case.
-#         client.register_client()
-#         time.sleep(.01)
-#         client.register_client()
-#
-#         clients.append(client)
-#         time.sleep(.2)
-#
-#
-# def test_iterations(n_iterations, pause_time, n_allowed_misses, allowed_rate):
-#     # Test that all clients receive updates at a reasonable
-#     # time.
-#     for i in range(0, n_iterations):
-#         for client in clients:
-#             client.send_state_update()
-#
-#         time.sleep(pause_time)
-#
-#         results = []
-#         for client in clients:
-#             count = client.pop_stats()
-#             results.append(count)
-#
-#         print("[ ] client count='{}'={}".format(len(clients), results))
-#
-#
-# def normal_test():
-#     while True:
-#         # Run this test until we have successfully
-#         # added up to the max number of clients and
-#         # updates are st
-#         if len(clients) > max_clients:
-#             break
-#
-#         add_clients(1)
-#         if len(clients) >= start_client_count:
-#             test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE, TEST_MISS_TOLERANCE, TEST_RATE_TOLERANCE)
-#
-#
+def test_iterations(n_iterations, pause_time):
+    # Test that all clients receive updates at a reasonable
+    # time.
+    for i in range(0, n_iterations):
+        loop.run_until_complete(send_updates())
+        time.sleep(pause_time)
+
+        results = []
+        for client in clients:
+            count = client.pop_stats()
+            results.append(count)
+
+        print("[{}]".format(results), flush=True)
+
+
+def normal_test():
+    while True:
+        # Run this test until we have successfully
+        # added up to the max number of clients and
+        # updates are st
+        if len(clients) > max_clients:
+            break
+
+        add_clients(1)
+        if len(clients) >= start_client_count:
+            test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE)
+
+
 # def perf_test():
 #     while True:
 #         test_iterations(10000, .010, 10000, 0.015)
 #
 #
-# add_clients(start_client_count)
-# normal_test()
+add_clients(start_client_count)
+normal_test()
 # # perf_test()
+loop.run_forever()
