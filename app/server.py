@@ -5,7 +5,7 @@ import time
 
 import app.config as config
 from app.state.resource import Resource
-from app.util import UDPOp, PACKET_SIZE
+import app.util as util
 
 log = config.log
 
@@ -27,7 +27,7 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         udp_op = data[0]
 
-        if udp_op == UDPOp.REGISTER_CLIENT.value:
+        if udp_op == util.UDPOp.REGISTER_CLIENT.value:
             client_id = str(struct.unpack('<I', data[1:5])[0])
             port = int.from_bytes(data[5:9], byteorder='little')
 
@@ -76,24 +76,11 @@ class Server:
             if self._is_profiling:
                 print(">", end='', flush=True)
             data = self._data_in_q.get_nowait()
+            print("data={}".format(data))
+            util.unpack_update(data, self._resource_map)
+            print("self._resource_map={}".format(self._resource_map))
 
-            size = struct.unpack(config.ENDIAN + 'I', data[5:9])[0]
-            idx = 9
-            while idx < size:
-                resource_type_byte = data[idx]
-                resource_id = struct.unpack(config.ENDIAN + 'I', data[5:9])[0]
-                self._resource_map[resource_id] = data[idx:idx+PACKET_SIZE[resource_type_byte]]
-                print("[{}:{}]".format(resource_type_byte, resource_id))
-
-        idx = 4
-        for resource_id in list(self._resource_map.keys()):
-            if self._is_profiling:
-                print("x", end='', flush=True)
-            data = self._resource_map[resource_id]
-            self._buffer_view[idx:idx+len(data)] = data
-            idx += len(data)
-        self._buffer_size = idx
-        struct.pack_into(config.ENDIAN + 'I', self._buffer_view, 0, self._buffer_size)
+        util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
 
     async def process_outgoing(self):
         while True:

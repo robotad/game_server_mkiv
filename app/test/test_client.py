@@ -50,8 +50,8 @@ class Client:
         player = Player(id=self._id,
                         health=0,
                         x=0,y=0,z=0)
-        util.prepare_update_packet(self.sample_packet, self._id, [player])
-
+        util.prepare_update_packet(self.sample_packet, self._id, resource_list=[player])
+        print("packet({})={}".format(self._id, self.sample_packet))
         self._recv_q = asyncio.Queue()
 
     def register_client(self):
@@ -64,7 +64,7 @@ class Client:
 
     def send_state_update(self, iteration):
         # Put iteration into the player health field
-        struct.pack_into(config.ENDIAN + 'I', self.sample_packet, 10, int(iteration))
+        struct.pack_into(config.ENDIAN + 'I', self.sample_packet, 14, int(iteration))
 
         if LOG_VISUAL:
             print(self._id, end='', flush=True)
@@ -83,9 +83,11 @@ class Client:
                 print(config.TEXT_GREEN + "<{}>".format(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
                 data = self._recv_q.get_nowait()
                 util.unpack_update(data, resource_map)
+
         print(resource_map, flush=True)
         if self._id in resource_map:
-            health = struct.unpack_from(config.ENDIAN + 'I', data, 5)[0]
+            health = struct.unpack_from(config.ENDIAN + 'I', data, 14)[0]
+            print("health={}".format(health))
             if health == iteration:
                 return True
         return False
@@ -126,7 +128,6 @@ async def send_updates(iteration):
 async def test_iterations(n_iterations):
     # Test that all clients receive updates at a reasonable
     # time.
-    total_recv = 0
     total_misses = 0
     for i in range(0, n_iterations):
         await send_updates(i)
@@ -137,15 +138,15 @@ async def test_iterations(n_iterations):
                 total_misses += 1
 
         if total_misses > 0:
-            print((config.TEXT_RED + "{}" + config.TEXT_ENDC).format(total_misses), flush=True)
+            print((config.TEXT_RED + "{} miss(es)." + config.TEXT_ENDC).format(total_misses), flush=True)
         else:
             print("")
 
-    if total_misses/(total_recv + total_misses) > TEST_MISS_TOLERANCE:
-        print((config.TEXT_RED + "{}% missed." + config.TEXT_ENDC).format((total_misses/(total_recv+total_misses))*100), flush=True)
+    if total_misses/n_iterations > TEST_MISS_TOLERANCE:
+        print((config.TEXT_RED + "{}% missed." + config.TEXT_ENDC).format((total_misses/n_iterations)*100), flush=True)
         return False
     else:
-        print("{}% missed, OK.".format((total_misses/(total_recv+total_misses))*100), flush=True)
+        print("{}% missed, OK.".format((total_misses/n_iterations)*100), flush=True)
         return True
 
 
