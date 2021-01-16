@@ -48,11 +48,11 @@ def unpack_update(buffer, resource_map):
     idx = 9
     while idx < size:
         type = buffer[idx]
-        size = PACKET_SIZE[type]
+        resource_size = PACKET_SIZE[type]
         resource_id = struct.unpack_from(config.ENDIAN + 'I', buffer, idx+1)[0]
         print("{}".format(resource_id), end='', flush=True)
-        resource_map[resource_id] = buffer[idx : idx+size]
-        idx += size
+        resource_map[resource_id] = buffer[idx : idx+resource_size]
+        idx += resource_size
     print("]", end='')
 
     return udp_op, sender_id, size

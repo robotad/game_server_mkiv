@@ -76,6 +76,7 @@ class Server:
             if self._is_profiling:
                 print(">", end='', flush=True)
             data = self._data_in_q.get_nowait()
+            # print("[{}]".format(data[0:60]), end='')
             udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
             if size > 0:
                 self._buffer_size = util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
@@ -93,7 +94,7 @@ class Server:
                     if self._is_profiling:
                         print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
                     self._transport.sendto(self._buffer, client_addr)
-                    print("{}>".format(self._buffer_size), end='')
+                    print("[{}]".format(self._buffer[0:60]), end='')
                     await asyncio.sleep(0)
                 self._d_send = time.process_time() - t_start
                 self._t_sent = time.process_time()

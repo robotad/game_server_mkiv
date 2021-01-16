@@ -51,7 +51,6 @@ class Client:
                         health=0,
                         x=1,y=2,z=3)
         util.prepare_update_packet(self.sample_packet, self._id, resource_list=[player])
-        print("packet({})={}".format(self._id, self.sample_packet))
         self._recv_q = asyncio.Queue()
 
     def register_client(self):
@@ -65,6 +64,7 @@ class Client:
     def send_state_update(self, iteration):
         # Put iteration into the player health field
         struct.pack_into(config.ENDIAN + 'I', self.sample_packet, 14, int(iteration))
+        print("packet({})={}".format(self._id, self.sample_packet))
 
         if LOG_VISUAL:
             print(self._id, end='', flush=True)
@@ -82,7 +82,7 @@ class Client:
             while not self._recv_q.empty():
                 print(config.TEXT_GREEN + "<{}>".format(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
                 data = self._recv_q.get_nowait()
-                print("data({})={}".format(self._id, data[0:30]), end='')
+                print("data({})={}".format(self._id, data[0:60]), end='')
                 util.unpack_update(data, resource_map)
 
         print("client({}) resource_map={}".format(self._id, resource_map), flush=True)
