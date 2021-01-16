@@ -22,6 +22,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
 TEST_ITERATIONS=500
 
+LOG_VISUAL=True
+
 
 class ClientReaderProtocol(asyncio.DatagramProtocol):
     def __init__(self, client):
@@ -60,11 +62,10 @@ class Client:
         print("[*] client({}) sent register data(size='{}') to address='{}'".format(self._id, len(packet), UDP_ADDRESS))
 
     def send_state_update(self):
-        print("{} ".format(self._id), end='', flush=True)
+        if LOG_VISUAL:
+            print(self._id, end='', flush=True)
         self._transport.sendto(self.sample_packet, UDP_ADDRESS)
         self._t_send = time.process_time()
-        self._recv_count = 0
-        self._miss_count = 0
 
     def receive(self):
         if self._t_send is not None:
@@ -73,17 +74,25 @@ class Client:
             else:
                 self._recv_count += 1
 
-        print(config.TEXT_GREEN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
+        if LOG_VISUAL:
+            print(config.TEXT_GREEN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
 
-    def get_stats(self):
-        return self._recv_count, self._miss_count
+    def pop_stats(self):
+        recv_count = self._recv_count
+        miss_count = self._miss_count
+        self._recv_count = 0
+        self._miss_count = 0
+
+        self._t_send = None
+
+        return recv_count, miss_count
 
 
 loop = asyncio.get_event_loop()
 
 
 clients = []
-start_client_count = 10
+start_client_count = 40
 max_clients = 80
 
 
@@ -101,8 +110,6 @@ def add_clients(count):
         # Double attempt to register client, just
         # in case.
         client.register_client()
-        client.register_client()
-
         clients.append(client)
         time.sleep(.2)
 
@@ -114,6 +121,12 @@ async def send_updates():
 
 
 async def test_iterations(n_iterations):
+    # Necessary to allow clients to receive all the data that
+    # has been piling up (sent from the server in between test
+    # iterations
+    for client in clients:
+        client.pop_stats()
+
     # Test that all clients receive updates at a reasonable
     # time.
     total_recv = 0
@@ -124,7 +137,7 @@ async def test_iterations(n_iterations):
 
         recv_counts = []
         for client in clients:
-            recv_count, miss_count = client.get_stats()
+            recv_count, miss_count = client.pop_stats()
             total_recv += recv_count
             total_misses += miss_count
             recv_counts.append(recv_count)

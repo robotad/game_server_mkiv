@@ -4,6 +4,7 @@ import struct
 import time
 
 import app.config as config
+from app.state.resource import Resource
 from app.util import UDPOp
 
 log = config.log
@@ -57,8 +58,13 @@ class Server:
         self._transport = None
         self._data_in_q = data_in_q
         self._clients = {}
+
+        self._resource_map = {}
+
         self._buffer = bytearray(Server.BUFFER_SIZE)
+        self._buffer_size = 0
         self._buffer_view = memoryview(self._buffer)
+
         self._t_sent = time.process_time()
         self._d_send = 0
 
@@ -66,13 +72,22 @@ class Server:
         self._profile_log = ""
 
     def _process_incoming(self):
-        idx = 0
         while not self._data_in_q.empty():
             if self._is_profiling:
-                print("x", end='', flush=True)
+                print(">", end='', flush=True)
             data = self._data_in_q.get_nowait()
+            resource_id = Resource.id_from_bytes(data[5:9])
+            self._resource_map[resource_id] = data
+
+        idx = 4
+        for resource_id in list(self._resource_map.keys()):
+            if self._is_profiling:
+                print("x", end='', flush=True)
+            data = self._resource_map[resource_id]
             self._buffer_view[idx:idx+len(data)] = data
             idx += len(data)
+        self._buffer_size = idx
+        struct.pack_into(config.ENDIAN + 'I', self._buffer_view, 0, self._buffer_size)
 
     async def process_outgoing(self):
         while True:
