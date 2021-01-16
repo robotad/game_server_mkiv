@@ -5,7 +5,7 @@ import time
 
 import app.config as config
 from app.state.resource import Resource
-from app.util import UDPOp
+from app.util import UDPOp, PACKET_SIZE
 
 log = config.log
 
@@ -76,8 +76,14 @@ class Server:
             if self._is_profiling:
                 print(">", end='', flush=True)
             data = self._data_in_q.get_nowait()
-            resource_id = Resource.id_from_bytes(data[5:9])
-            self._resource_map[resource_id] = data
+
+            size = struct.unpack(config.ENDIAN + 'I', data[5:9])[0]
+            idx = 9
+            while idx < size:
+                resource_type_byte = data[idx]
+                resource_id = struct.unpack(config.ENDIAN + 'I', data[5:9])[0]
+                self._resource_map[resource_id] = data[idx:idx+PACKET_SIZE[resource_type_byte]]
+                print("[{}:{}]".format(resource_type_byte, resource_id))
 
         idx = 4
         for resource_id in list(self._resource_map.keys()):

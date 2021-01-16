@@ -3,7 +3,7 @@ import struct
 import time
 
 import app.config as config
-from app.util import UDPOp
+import app.util as util
 from app.state.player.resource import Player
 
 UDP_ADDRESS=("127.0.0.1", 5002)
@@ -20,7 +20,7 @@ TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
                                 # rate in seconds per update
 TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
-TEST_ITERATIONS=500
+TEST_ITERATIONS=1
 
 LOG_VISUAL=True
 
@@ -34,7 +34,7 @@ class ClientReaderProtocol(asyncio.DatagramProtocol):
         self._client._transport = transport
 
     def datagram_received(self, data, addr):
-        self._client.receive()
+        self._client.receive(data)
 
 
 class Client:
@@ -46,54 +46,57 @@ class Client:
         self._t_send = None
         self._t_recv = None
 
-        self._miss_count = 0
-        self._recv_count = 0
+        self.sample_packet = bytearray(1 + 4 + 4 + Player.RESOURCE_PACKET_SIZE)
+        player = Player(id=self._id,
+                        health=0,
+                        x=0,y=0,z=0)
+        util.prepare_update_packet(self.sample_packet, self._id, [player])
 
-        self.sample_packet = bytearray(1 + 4 + Player.RESOURCE_PACKET_SIZE)
-        self.sample_packet[0] = UDPOp.STATE_UPDATE.value
-        struct.pack_into('<i', self.sample_packet, 1, int(self._id))
+        self._recv_q = asyncio.Queue()
 
     def register_client(self):
         packet = bytearray(9)
-        packet[0] = UDPOp.REGISTER_CLIENT.value
+        packet[0] = util.UDPOp.REGISTER_CLIENT.value
         struct.pack_into('<i', packet, 1, int(self._id))
         struct.pack_into('<i', packet, 5, int(self._port))
         self._transport.sendto(packet, UDP_ADDRESS)
         print("[*] client({}) sent register data(size='{}') to address='{}'".format(self._id, len(packet), UDP_ADDRESS))
 
-    def send_state_update(self):
+    def send_state_update(self, iteration):
+        # Put iteration into the player health field
+        struct.pack_into(config.ENDIAN + 'I', self.sample_packet, 10, int(iteration))
+
         if LOG_VISUAL:
             print(self._id, end='', flush=True)
         self._transport.sendto(self.sample_packet, UDP_ADDRESS)
         self._t_send = time.process_time()
 
-    def receive(self):
-        if self._t_send is not None:
-            if time.process_time() - self._t_send > TEST_RATE_TOLERANCE:
-                self._miss_count += 1
-            else:
-                self._recv_count += 1
-
+    def receive(self, data):
         if LOG_VISUAL:
             print(config.TEXT_GREEN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
+        self._recv_q.put_nowait(data)
 
-    def pop_stats(self):
-        recv_count = self._recv_count
-        miss_count = self._miss_count
-        self._recv_count = 0
-        self._miss_count = 0
-
-        self._t_send = None
-
-        return recv_count, miss_count
+    def is_received(self, iteration):
+        resource_map = {}
+        if not self._recv_q.empty():
+            while not self._recv_q.empty():
+                print(config.TEXT_GREEN + "<{}>".format(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
+                data = self._recv_q.get_nowait()
+                util.unpack_update(data, resource_map)
+        print(resource_map, flush=True)
+        if self._id in resource_map:
+            health = struct.unpack_from(config.ENDIAN + 'I', data, 5)[0]
+            if health == iteration:
+                return True
+        return False
 
 
 loop = asyncio.get_event_loop()
 
 
 clients = []
-start_client_count = 40
-max_clients = 80
+start_client_count = 1
+max_clients = 1
 
 
 def add_clients(count):
@@ -114,35 +117,25 @@ def add_clients(count):
         time.sleep(.2)
 
 
-async def send_updates():
+async def send_updates(iteration):
     for client in clients:
-        client.send_state_update()
+        client.send_state_update(iteration)
         await asyncio.sleep(0)
 
 
 async def test_iterations(n_iterations):
-    # Necessary to allow clients to receive all the data that
-    # has been piling up (sent from the server in between test
-    # iterations
-    for client in clients:
-        client.pop_stats()
-
     # Test that all clients receive updates at a reasonable
     # time.
     total_recv = 0
     total_misses = 0
     for i in range(0, n_iterations):
-        await send_updates()
+        await send_updates(i)
         await asyncio.sleep(0.010)
 
-        recv_counts = []
         for client in clients:
-            recv_count, miss_count = client.pop_stats()
-            total_recv += recv_count
-            total_misses += miss_count
-            recv_counts.append(recv_count)
+            if not client.is_received(i):
+                total_misses += 1
 
-        print("{}".format(recv_counts), end='', flush=True)
         if total_misses > 0:
             print((config.TEXT_RED + "{}" + config.TEXT_ENDC).format(total_misses), flush=True)
         else:
