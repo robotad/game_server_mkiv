@@ -77,11 +77,9 @@ start_client_count = 10
 max_clients = 80
 
 
-
-
-
 def add_clients(count):
-    for i in range(0, count):
+    n = len(clients)
+    for i in range(n, n+count):
         # Add another client
         port = 8000 + len(clients)
         client = Client(i, port)
@@ -103,6 +101,7 @@ async def send_updates():
     for client in clients:
         client.send_state_update()
         await asyncio.sleep(0)
+    return True
 
 
 def test_iterations(n_iterations, pause_time):
@@ -117,7 +116,7 @@ def test_iterations(n_iterations, pause_time):
             count = client.pop_stats()
             results.append(count)
 
-        print("[{}]".format(results), flush=True)
+        print("{}".format(results), flush=True)
 
 
 def normal_test():
