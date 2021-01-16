@@ -29,3 +29,4 @@ elif LOG_LEVEL.lower() == "info":
     log.setLevel(logging.INFO)
 elif LOG_LEVEL.lower() == "warn":
     log.setLevel(logging.WARN)
+

@@ -23,8 +23,8 @@ docker run --network unity \
 
 #  2>&1 | tee .out
 
-if [ "${DEV_PROFILE}" == "True" ]; then
-  sleep 70s
-  docker cp $(docker ps -aqf "name=game-server-async"):/server.cprof .
-  pyprof2calltree -k -i server.cprof
-fi
+#if [ "${DEV_PROFILE}" == "True" ]; then
+#  sleep 70s
+#  docker cp $(docker ps -aqf "name=game-server-async"):/server.cprof .
+#  pyprof2calltree -k -i server.cprof
+#fi
