@@ -2,12 +2,25 @@ import asyncio
 import struct
 import time
 
+import app.config as config
 from app.util import UDPOp
 from app.state.player.resource import Player
 
 UDP_ADDRESS=("127.0.0.1", 5002)
-OKGREEN = '\033[92m'
-ENDC = '\033[0m'
+
+# Test that all clients receive updates in approximately
+# TEST_RECEIVE_TOLERANCE (the time in seconds). Failures here
+# mean clients would *not* get timeley updates from the server
+
+TEST_RECEIVE_PAUSE=0.010        # Seconds to wait after send to check
+                                # how long it took to receive. It is low, to
+                                # simulate getting constant updates from clients
+TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
+                                # receive an update in *approximately* this
+                                # rate in seconds per update
+TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
+                                # before we fail per test iteration
+TEST_ITERATIONS=500
 
 
 class ClientReaderProtocol(asyncio.DatagramProtocol):
@@ -27,7 +40,12 @@ class Client:
         self._id = id
         self._port = port
         self._transport = None
-        self._receive_count = 0
+
+        self._t_send = None
+        self._t_recv = None
+
+        self._miss_count = 0
+        self._recv_count = 0
 
         self.sample_packet = bytearray(1 + 4 + Player.RESOURCE_PACKET_SIZE)
         self.sample_packet[0] = UDPOp.STATE_UPDATE.value
@@ -42,35 +60,27 @@ class Client:
         print("[*] client({}) sent register data(size='{}') to address='{}'".format(self._id, len(packet), UDP_ADDRESS))
 
     def send_state_update(self):
-        print(self._id, end='', flush=True)
+        print("{} ".format(self._id), end='', flush=True)
         self._transport.sendto(self.sample_packet, UDP_ADDRESS)
+        self._t_send = time.process_time()
+        self._recv_count = 0
+        self._miss_count = 0
 
     def receive(self):
-        print(OKGREEN + str(self._id) + ENDC, end='', flush=True)
-        self._receive_count += 1
+        if self._t_send is not None:
+            if time.process_time() - self._t_send > TEST_RATE_TOLERANCE:
+                self._miss_count += 1
+            else:
+                self._recv_count += 1
 
-    def pop_stats(self):
-        count = self._receive_count
-        self._receive_count = 0
-        return count
+        print(config.TEXT_GREEN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
+
+    def get_stats(self):
+        return self._recv_count, self._miss_count
 
 
 loop = asyncio.get_event_loop()
 
-
-# Test that all clients receive updates in approximately
-# TEST_RECEIVE_TOLERANCE (the time in seconds). Failures here
-# mean clients would *not* get timeley updates from the server
-
-TEST_RECEIVE_PAUSE=0.010        # Seconds to wait after send to check
-                                # how long it took to receive. It is low, to
-                                # simulate getting constant updates from clients
-TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
-                                # receive an update in *approximately* this
-                                # rate in seconds per update
-TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
-                                # before we fail per test iteration
-TEST_ITERATIONS=500
 
 clients = []
 start_client_count = 10
@@ -101,22 +111,36 @@ async def send_updates():
     for client in clients:
         client.send_state_update()
         await asyncio.sleep(0)
-    return True
 
 
-def test_iterations(n_iterations, pause_time):
+async def test_iterations(n_iterations):
     # Test that all clients receive updates at a reasonable
     # time.
+    total_recv = 0
+    total_misses = 0
     for i in range(0, n_iterations):
-        loop.run_until_complete(send_updates())
-        time.sleep(pause_time)
+        await send_updates()
+        await asyncio.sleep(0.010)
 
-        results = []
+        recv_counts = []
         for client in clients:
-            count = client.pop_stats()
-            results.append(count)
+            recv_count, miss_count = client.get_stats()
+            total_recv += recv_count
+            total_misses += miss_count
+            recv_counts.append(recv_count)
 
-        print("{}".format(results), flush=True)
+        print("{}".format(recv_counts), end='', flush=True)
+        if total_misses > 0:
+            print((config.TEXT_RED + "{}" + config.TEXT_ENDC).format(total_misses), flush=True)
+        else:
+            print("")
+
+    if total_misses/(total_recv + total_misses) > TEST_MISS_TOLERANCE:
+        print((config.TEXT_RED + "{}% missed." + config.TEXT_ENDC).format((total_misses/(total_recv+total_misses))*100), flush=True)
+        return False
+    else:
+        print("{}% missed, OK.".format((total_misses/(total_recv+total_misses))*100), flush=True)
+        return True
 
 
 def normal_test():
@@ -129,7 +153,9 @@ def normal_test():
 
         add_clients(1)
         if len(clients) >= start_client_count:
-            test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE)
+            if not loop.run_until_complete(test_iterations(TEST_ITERATIONS)):
+                print("[x] Error: test failed.")
+                return
 
 
 # def perf_test():
@@ -140,4 +166,3 @@ def normal_test():
 add_clients(start_client_count)
 normal_test()
 # # perf_test()
-loop.run_forever()

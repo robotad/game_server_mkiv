@@ -30,3 +30,6 @@ elif LOG_LEVEL.lower() == "info":
 elif LOG_LEVEL.lower() == "warn":
     log.setLevel(logging.WARN)
 
+TEXT_GREEN = '\033[92m'
+TEXT_RED = '\033[91m'
+TEXT_ENDC = '\033[0m'

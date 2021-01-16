@@ -35,7 +35,7 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
             else:
                 addr = (addr[0], port)
 
-            self._server._clients.append(addr)
+            self._server._clients[client_id] = addr
             if self._is_profiling:
                 print("[+1]", end='', flush=True)
             else:
@@ -48,7 +48,7 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
 
 
 class Server:
-    BROADCAST_INTERVAL = 0.010
+    BROADCAST_INTERVAL = 0.005
     BUFFER_SIZE = 1024          # Note: if this is too big, client won't receive
     PROFILE_BUFFER_Y = 1
     PROFILE_SEND_Y = 2
@@ -56,7 +56,7 @@ class Server:
     def __init__(self, data_in_q, is_profiling):
         self._transport = None
         self._data_in_q = data_in_q
-        self._clients = []
+        self._clients = {}
         self._buffer = bytearray(Server.BUFFER_SIZE)
         self._buffer_view = memoryview(self._buffer)
         self._t_sent = time.process_time()
@@ -69,23 +69,22 @@ class Server:
         idx = 0
         while not self._data_in_q.empty():
             if self._is_profiling:
-                print("o", end='', flush=True)
+                print("x", end='', flush=True)
             data = self._data_in_q.get_nowait()
-            try:
-                self._buffer_view[idx:idx+len(data)] = data
-            except Exception as e:
-                log.error("[x] Error: rtype={}, idx={}".format(type(data), idx), e)
+            self._buffer_view[idx:idx+len(data)] = data
             idx += len(data)
 
     async def process_outgoing(self):
         while True:
-            await asyncio.sleep(0)
-            # await asyncio.sleep(Server.BROADCAST_INTERVAL - ((time.process_time() - self._t_sent) + self._d_send))
+            # await asyncio.sleep(0)
+            await asyncio.sleep(Server.BROADCAST_INTERVAL - ((time.process_time() - self._t_sent) + self._d_send))
             self._process_incoming()
             t_start = time.process_time()
-            for client_addr in self._clients:
+            client_ids = list(self._clients.keys())
+            for client_id in client_ids:
+                client_addr = self._clients[client_id]
                 if self._is_profiling:
-                    print("#", end='', flush=True)
+                    print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
                 self._transport.sendto(self._buffer, client_addr)
                 await asyncio.sleep(0)
             self._d_send = time.process_time() - t_start
