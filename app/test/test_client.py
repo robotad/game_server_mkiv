@@ -26,8 +26,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
 TEST_ITERATIONS=2
 
 clients = []
-START_CLIENT_COUNT = 30
-MAX_CLIENTS = 30
+START_CLIENT_COUNT = 1
+MAX_CLIENTS = 1
 
 LOG_VISUAL=True
 

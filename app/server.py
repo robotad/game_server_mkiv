@@ -62,7 +62,7 @@ class Server:
         self._resource_map = {}
 
         self._buffer = bytearray(Server.BUFFER_SIZE)
-        self._buffer_size = 0
+        self._buffer_result = asyncio.Queue()
         self._buffer_view = memoryview(self._buffer)
 
         self._t_sent = time.process_time()
@@ -76,34 +76,27 @@ class Server:
             print("x", end='', flush=True)
         udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
         if size > 0:
-            self._buffer_size = util.prepare_update_packet(self._buffer_view, 0,
-                                                           resource_byte_map=self._resource_map)
+            result_size = util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
+            self._buffer_result.put_nowait(result_size)
 
-    async def _process_incoming(self):
-        if self._is_profiling:
-            print(">", end='', flush=True)
+    async def process_incoming(self):
         while True:
             # Wait for incoming data
             data = await self._data_in_q.get()
+            if self._is_profiling:
+                print(">", end='', flush=True)
             self._data_to_buffer(data)
-            if self._data_in_q.empty():
-                break
 
     async def process_outgoing(self):
         while True:
-            await self._process_incoming()
-            if self._buffer_size > 0:
-                t_start = time.process_time()
-                client_ids = list(self._clients.keys())
-                for client_id in client_ids:
-                    client_addr = self._clients[client_id]
-                    if self._is_profiling:
-                        print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
-                    self._transport.sendto(self._buffer, client_addr)
-                    # print("[{}]".format(self._buffer[0:60]), end='')
-                    await asyncio.sleep(0)
-                self._d_send = time.process_time() - t_start
-                self._t_sent = time.process_time()
+            await self._buffer_result.get()
+            client_ids = list(self._clients.keys())
+            for client_id in client_ids:
+                client_addr = self._clients[client_id]
+                if self._is_profiling:
+                    print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
+                self._transport.sendto(self._buffer, client_addr)
+                # print("[{}]".format(self._buffer[0:60]), end='')
 
 
 loop = asyncio.get_event_loop()
@@ -114,7 +107,7 @@ coro = loop.create_datagram_endpoint(
     local_addr=(config.UDP_EXTERNAL_HOST, config.UDP_RECV_PORT),
 )
 
-# loop.create_task(server.process_incoming())
+loop.create_task(server.process_incoming())
 loop.create_task(server.process_outgoing())
 
 transport, protocol = loop.run_until_complete(coro)
