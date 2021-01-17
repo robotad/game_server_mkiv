@@ -23,8 +23,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
 TEST_ITERATIONS=1
 
-START_CLIENT_COUNT = 10
-MAX_CLIENTS = 15
+START_CLIENT_COUNT = 30
+MAX_CLIENTS = 40
 clients = []
 
 LOG_VISUAL=True
@@ -69,8 +69,6 @@ class Client:
     def send_state_update(self, iteration):
         # Put iteration into the player health field
         struct.pack_into(config.ENDIAN + 'I', self.sample_packet, util.PACKET_RESOURCE_START_INDEX + Player.PACKET_HEALTH_INDEX, int(iteration))
-        print("{} ".format(self._id))
-
         if LOG_VISUAL:
             print(self._id, end='', flush=True)
         self._transport.sendto(self.sample_packet, UDP_ADDRESS)
