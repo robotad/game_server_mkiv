@@ -23,11 +23,11 @@ TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
                                 # rate in seconds per update
 TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
-TEST_ITERATIONS=2
+TEST_ITERATIONS=10
 
 clients = []
-START_CLIENT_COUNT = 40
-MAX_CLIENTS = 40
+START_CLIENT_COUNT = 45
+MAX_CLIENTS = 50
 
 LOG_VISUAL=True
 
@@ -129,9 +129,10 @@ def add_clients(count):
         time.sleep(.01)
 
 
-def test_iterations(n_iterations, pause_time, n_allowed_misses, allowed_rate):
+def test_iterations(n_iterations, pause_time, n_allowed_misses):
     # Test that all clients receive updates at a reasonable
     # time.
+    time.sleep(2)
     misses = 0
     for i in range(0, n_iterations):
         print("[{}]".format(i), end='')
@@ -142,8 +143,15 @@ def test_iterations(n_iterations, pause_time, n_allowed_misses, allowed_rate):
         for client in clients:
             if not client.is_received(len(clients), i):
                 misses += 1
+
         print(config.TEXT_RED + str(misses) + config.TEXT_ENDC)
 
+    if misses / (n_iterations * len(clients)) > n_allowed_misses:
+        print(config.TEXT_RED + "[x] Error, too many misses: {}".format((misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
+        return False
+    else:
+        print(config.TEXT_GREEN + "[+] OK, acceptable misses: {}".format((misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
+        return True
 
 def normal_test():
     while True:
@@ -154,14 +162,16 @@ def normal_test():
             break
 
         if len(clients) >= START_CLIENT_COUNT:
-            test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE, TEST_MISS_TOLERANCE, TEST_RATE_TOLERANCE)
+            if not test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE, TEST_MISS_TOLERANCE):
+                return
 
         add_clients(1)
 
 
 def perf_test():
     while True:
-        test_iterations(10000, .010, 10000, 0.015)
+        if not test_iterations(10000, .010, 10000, 0.015):
+            return
 
 
 add_clients(START_CLIENT_COUNT)
