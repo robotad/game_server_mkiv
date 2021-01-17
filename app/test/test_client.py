@@ -79,19 +79,29 @@ class Client:
     def receive(self, data):
         if LOG_VISUAL:
             print(config.TEXT_CYAN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
-        self._recv_q.put_nowait(data)
+
+        # Put the time received in, we will ignore data that
+        # came in too late
+        self._recv_q.put_nowait((data, time.process_time()))
 
     def is_received(self, n_clients, iteration):
         resource_map = {}
         if not self._recv_q.empty():
-            idx = 0
+            # Start unpacking the update and putting the
+            # results into the resource map for analysis
             while not self._recv_q.empty():
-                data = self._recv_q.get_nowait()
+                data, t_recv = self._recv_q.get_nowait()
+                if (t_recv - self._t_send) > TEST_RATE_TOLERANCE:
+                    break
                 util.unpack_update(data, resource_map)
-                idx += 1
 
+            # Check how many successes we have. A success means
+            # that every client has received every other client's
+            # update for this iteration
             n_successes = 0
             for client_id in resource_map.keys():
+                # Check the 'health' field for every client. The value should
+                # equal the value of the current iteration
                 health = struct.unpack_from(config.ENDIAN + 'I', resource_map[client_id], Player.PACKET_HEALTH_INDEX)[0]
                 if health == iteration:
                     n_successes += 1
@@ -121,7 +131,7 @@ async def add_clients(count):
         # in case.
         client.register_client()
         clients.append(client)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
 
 async def send_updates(iteration):
@@ -136,7 +146,8 @@ async def test_iterations(n_iterations):
     total_misses = 0
     for i in range(0, n_iterations):
         await send_updates(i)
-        await asyncio.sleep(0.010)
+        await asyncio.sleep(1)  # Wait for data for a significant time. The client itself
+                                # will rule out data that came in too late
 
         for client in clients:
             if not client.is_received(len(clients), i):
