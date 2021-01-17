@@ -38,7 +38,7 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
 
             self._server._clients[client_id] = addr
             if self._is_profiling:
-                print("[+1]", end='', flush=True)
+                print("+", end='', flush=True)
             else:
                 log.info("[*] Server: registered client(addr={})".format(addr))
 
@@ -71,21 +71,31 @@ class Server:
         self._is_profiling = is_profiling
         self._profile_log = ""
 
-    def _process_incoming(self):
-        if not self._data_in_q.empty():
-            if self._is_profiling:
-                print(">", end='', flush=True)
-            data = self._data_in_q.get_nowait()
-            # print("[{}]".format(data[0:60]), end='')
-            udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
-            if size > 0:
-                self._buffer_size = util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
+    def _data_to_buffer(self, data):
+        if self._is_profiling:
+            print("x", end='', flush=True)
+        udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
+        if size > 0:
+            self._buffer_size = util.prepare_update_packet(self._buffer_view, 0,
+                                                           resource_byte_map=self._resource_map)
+
+    async def _process_incoming(self):
+        if self._is_profiling:
+            print(">", end='', flush=True)
+        while True:
+            # Wait for incoming data
+            data = await self._data_in_q.get()
+            self._data_to_buffer(data)
+            if self._data_in_q.empty():
+                break
 
     async def process_outgoing(self):
         while True:
             # await asyncio.sleep(0)
             await asyncio.sleep(Server.BROADCAST_INTERVAL - ((time.process_time() - self._t_sent) + self._d_send))
-            self._process_incoming()
+
+            await self._process_incoming()
+
             if self._buffer_size > 0:
                 t_start = time.process_time()
                 client_ids = list(self._clients.keys())
