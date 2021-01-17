@@ -26,8 +26,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
 TEST_ITERATIONS=2
 
 clients = []
-START_CLIENT_COUNT = 20
-MAX_CLIENTS = 20
+START_CLIENT_COUNT = 40
+MAX_CLIENTS = 40
 
 LOG_VISUAL=True
 
@@ -153,9 +153,10 @@ def normal_test():
         if len(clients) > MAX_CLIENTS:
             break
 
-        add_clients(1)
         if len(clients) >= START_CLIENT_COUNT:
             test_iterations(TEST_ITERATIONS, TEST_RECEIVE_PAUSE, TEST_MISS_TOLERANCE, TEST_RATE_TOLERANCE)
+
+        add_clients(1)
 
 
 def perf_test():
