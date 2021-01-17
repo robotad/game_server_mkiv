@@ -1,3 +1,4 @@
+import multiprocessing
 import socket
 import struct
 import threading
@@ -13,15 +14,16 @@ UDP_ADDRESS=("127.0.0.1", 5002)
 # TEST_RECEIVE_TOLERANCE (the time in seconds). Failures here
 # mean clients would *not* get timeley updates from the server
 
-TEST_RECEIVE_PAUSE=0.010        # Seconds to wait after send to check
-                                # how long it took to receive. It is low, to
-                                # simulate getting constant updates from clients
+TEST_RECEIVE_PAUSE=1.0          # Seconds to wait after send to check
+                                # how long it took to receive. It is long enough
+                                # to receive all data, the clients themselves will factor
+                                # out data that came in too late
 TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
                                 # receive an update in *approximately* this
                                 # rate in seconds per update
 TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
-TEST_ITERATIONS=500
+TEST_ITERATIONS=2
 
 clients = []
 START_CLIENT_COUNT = 1
@@ -38,6 +40,7 @@ class TestClient:
         self.sock.bind(('0.0.0.0', self.port))
 
         self._t_send = None
+        self._recv_q = multiprocessing.Queue()
 
         self.sample_packet = bytearray(1 + 4 + 4 + Player.RESOURCE_PACKET_SIZE)
         player = Player(id=self._id,
@@ -73,9 +76,41 @@ class TestClient:
         """
         try:
             while True:
+                if LOG_VISUAL:
+                    print(config.TEXT_CYAN + str(self._id) + config.TEXT_ENDC, end='', flush=True)
                 data, client_address = self.sock.recvfrom(4096)
+                self._recv_q.put_nowait((data, time.process_time()))
         except Exception as ex:
             print("[x] UDP: Error receiving from client:", ex)
+
+    def is_received(self, n_clients, iteration):
+        resource_map = {}
+        if not self._recv_q.empty():
+            # Start unpacking the update and putting the
+            # results into the resource map for analysis
+            while not self._recv_q.empty():
+                data, t_recv = self._recv_q.get_nowait()
+                if (t_recv - self._t_send) > TEST_RATE_TOLERANCE:
+                    break
+                util.unpack_update(data, resource_map)
+
+            # Check how many successes we have. A success means
+            # that every client has received every other client's
+            # update for this iteration
+            n_successes = 0
+            for client_id in resource_map.keys():
+                # Check the 'health' field for every client. The value should
+                # equal the value of the current iteration
+                health = struct.unpack_from(config.ENDIAN + 'I', resource_map[client_id], Player.PACKET_HEALTH_INDEX)[0]
+                if health == iteration:
+                    n_successes += 1
+
+            print(str(self._id) + config.TEXT_BLUE + ":{:.2f}".format(n_successes/n_clients) + config.TEXT_ENDC, end='', flush=True)
+
+            if n_successes == n_clients:
+                return True
+
+        return False
 
 
 def add_clients(count):
@@ -97,17 +132,17 @@ def add_clients(count):
 def test_iterations(n_iterations, pause_time, n_allowed_misses, allowed_rate):
     # Test that all clients receive updates at a reasonable
     # time.
-    total_rate = 0
-    total_size = 0
-    total_count = 0
-    stat_count = 0
     misses = 0
-
     for i in range(0, n_iterations):
+        print("[{}]".format(i), end='')
         for client in clients:
             client.send_state_update(i)
 
         time.sleep(pause_time)
+        for client in clients:
+            if not client.is_received(len(clients), i):
+                misses += 1
+        print(config.TEXT_RED + str(misses) + config.TEXT_ENDC)
 
 
 def normal_test():

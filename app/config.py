@@ -30,6 +30,7 @@ elif LOG_LEVEL.lower() == "info":
 elif LOG_LEVEL.lower() == "warn":
     log.setLevel(logging.WARN)
 
+TEXT_BOLD = '\033[1m'
 TEXT_GREEN = '\033[92m'
 TEXT_CYAN = '\033[96m'
 TEXT_BLUE = '\033[94m'
