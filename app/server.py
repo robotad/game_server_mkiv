@@ -91,7 +91,6 @@ class Server:
         self._profile_log = ""
 
     async def process_incoming(self):
-        buffer = await self._buffer_bank.get_empty()
         processed_size = 0
         resource_map = {}
 
@@ -109,10 +108,10 @@ class Server:
                 if processed_size > 0:
                     # Prepare the buffer and register as ready
                     # so process_outgoing() can use it.
+                    buffer = await self._buffer_bank.get_empty()
                     packet_size = util.prepare_update_packet(buffer, 0, resource_byte_map=resource_map)
                     self._buffer_bank.register_ready(buffer, packet_size)
 
-                    buffer = await self._buffer_bank.get_empty()
                     processed_size = 0
                     resource_map = {}
 
@@ -123,7 +122,7 @@ class Server:
             for client_id in client_ids:
                 client_addr = self._clients[client_id]
                 if self._is_profiling:
-                    print(config.TEXT_GREEN + client_id + "(" + str(size) + ")" + config.TEXT_ENDC, end='', flush=True)
+                    print(config.TEXT_GREEN + "{} ".format(client_id) + config.TEXT_ENDC, end='', flush=True)
                 self._transport.sendto(buffer[0:size], client_addr)
                 await asyncio.sleep(0)
             self._buffer_bank.register_empty(buffer)

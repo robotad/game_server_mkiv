@@ -23,11 +23,11 @@ TEST_RATE_TOLERANCE=0.015       # The test will fail if a client did not
                                 # rate in seconds per update
 TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
-TEST_ITERATIONS=10
+TEST_ITERATIONS=20
 
 clients = []
 START_CLIENT_COUNT = 50
-MAX_CLIENTS = 50
+MAX_CLIENTS = 60
 
 LOG_VISUAL=True
 
