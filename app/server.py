@@ -48,6 +48,27 @@ class UdpReaderProtocol(asyncio.DatagramProtocol):
             self._data_in_q.put_nowait(data)
 
 
+class BufferBank:
+    def __init__(self, buffer_size, count):
+        self.buffer_empty_q = asyncio.Queue()
+        for c in range(0, count):
+            buffer = bytearray(buffer_size)
+            self.buffer_empty_q.put_nowait(buffer)
+        self.buffer_ready_q = asyncio.Queue()
+
+    def register_empty(self, buffer):
+        self.buffer_empty_q.put_nowait(buffer)
+
+    async def get_empty(self):
+        return await self.buffer_empty_q.get()
+
+    def register_ready(self, buffer):
+        self.buffer_ready_q.put_nowait(buffer)
+
+    async def get_ready(self):
+        return await self.buffer_ready_q.get()
+
+
 class Server:
     BROADCAST_INTERVAL = 0.005
     BUFFER_SIZE = 1024          # Note: if this is too big, client won't receive
@@ -61,9 +82,7 @@ class Server:
 
         self._resource_map = {}
 
-        self._buffer = bytearray(Server.BUFFER_SIZE)
-        self._buffer_result = asyncio.Queue()
-        self._buffer_view = memoryview(self._buffer)
+        self._buffer_bank = BufferBank(buffer_size=1024, count=2)
 
         self._t_sent = time.process_time()
         self._d_send = 0
@@ -71,13 +90,14 @@ class Server:
         self._is_profiling = is_profiling
         self._profile_log = ""
 
-    def _data_to_buffer(self, data):
+    async def _data_to_buffer(self, data):
         if self._is_profiling:
             print("x", end='', flush=True)
         udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
         if size > 0:
-            result_size = util.prepare_update_packet(self._buffer_view, 0, resource_byte_map=self._resource_map)
-            self._buffer_result.put_nowait(result_size)
+            buffer = await self._buffer_bank.get_empty()
+            util.prepare_update_packet(buffer, 0, resource_byte_map=self._resource_map)
+            self._buffer_bank.register_ready(buffer)
 
     async def process_incoming(self):
         while True:
@@ -85,17 +105,18 @@ class Server:
             data = await self._data_in_q.get()
             if self._is_profiling:
                 print(">", end='', flush=True)
-            self._data_to_buffer(data)
+            await self._data_to_buffer(data)
 
     async def process_outgoing(self):
         while True:
-            await self._buffer_result.get()
+            buffer = await self._buffer_bank.get_ready()
             client_ids = list(self._clients.keys())
             for client_id in client_ids:
                 client_addr = self._clients[client_id]
                 if self._is_profiling:
                     print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
-                self._transport.sendto(self._buffer, client_addr)
+                self._transport.sendto(buffer, client_addr)
+                self._buffer_bank.register_empty(buffer)
                 # print("[{}]".format(self._buffer[0:60]), end='')
 
 

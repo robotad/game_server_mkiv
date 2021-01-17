@@ -26,8 +26,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
 TEST_ITERATIONS=2
 
 clients = []
-START_CLIENT_COUNT = 1
-MAX_CLIENTS = 1
+START_CLIENT_COUNT = 20
+MAX_CLIENTS = 20
 
 LOG_VISUAL=True
 
@@ -126,7 +126,7 @@ def add_clients(count):
         client.register_client()
 
         clients.append(client)
-        time.sleep(.2)
+        time.sleep(.01)
 
 
 def test_iterations(n_iterations, pause_time, n_allowed_misses, allowed_rate):
