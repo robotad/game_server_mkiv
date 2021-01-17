@@ -82,7 +82,7 @@ class Server:
 
         self._resource_map = {}
 
-        self._buffer_bank = BufferBank(buffer_size=1024, count=2)
+        self._buffer_bank = BufferBank(buffer_size=1024, count=4)
 
         self._t_sent = time.process_time()
         self._d_send = 0
@@ -90,22 +90,26 @@ class Server:
         self._is_profiling = is_profiling
         self._profile_log = ""
 
-    async def _data_to_buffer(self, data):
+    def _data_to_buffer(self, buffer, data):
         if self._is_profiling:
             print("x", end='', flush=True)
         udp_op, sender_id, size = util.unpack_update(data, self._resource_map)
         if size > 0:
-            buffer = await self._buffer_bank.get_empty()
             util.prepare_update_packet(buffer, 0, resource_byte_map=self._resource_map)
-            self._buffer_bank.register_ready(buffer)
 
     async def process_incoming(self):
+        buffer = await self._buffer_bank.get_empty()
+
         while True:
             # Wait for incoming data
             data = await self._data_in_q.get()
             if self._is_profiling:
                 print(">", end='', flush=True)
-            await self._data_to_buffer(data)
+            self._data_to_buffer(buffer, data)
+
+            if self._data_in_q.empty():
+                self._buffer_bank.register_ready(buffer)
+                buffer = await self._buffer_bank.get_empty()
 
     async def process_outgoing(self):
         while True:
@@ -116,8 +120,8 @@ class Server:
                 if self._is_profiling:
                     print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
                 self._transport.sendto(buffer, client_addr)
-                self._buffer_bank.register_empty(buffer)
-                # print("[{}]".format(self._buffer[0:60]), end='')
+                await asyncio.sleep(0)
+            self._buffer_bank.register_empty(buffer)
 
 
 loop = asyncio.get_event_loop()
