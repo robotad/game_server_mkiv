@@ -91,11 +91,7 @@ class Server:
 
     async def process_outgoing(self):
         while True:
-            # await asyncio.sleep(0)
-            await asyncio.sleep(Server.BROADCAST_INTERVAL - ((time.process_time() - self._t_sent) + self._d_send))
-
             await self._process_incoming()
-
             if self._buffer_size > 0:
                 t_start = time.process_time()
                 client_ids = list(self._clients.keys())

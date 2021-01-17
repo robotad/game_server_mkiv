@@ -20,6 +20,24 @@ entrypoint.sh - loaded into the docker container as the ENTRYPOINT for execution
 ```
 
 ## Testing
+You may have to increase the mount of files your OS can have open at
+a time. On MacOS:
+```bash
+ulimit -Sn 1024
+```
+Verify the amount of open files has been increased to 1024:
+```bash
+ulimit -a
+
+core file size          (blocks, -c) 0
+data seg size           (kbytes, -d) unlimited
+file size               (blocks, -f) unlimited
+max locked memory       (kbytes, -l) unlimited
+max memory size         (kbytes, -m) unlimited
+open files                      (-n) 1024
+...
+```
+
 Use the test client `./test.sh` to run tests.
 ```bash
 pip3 install virtualenv

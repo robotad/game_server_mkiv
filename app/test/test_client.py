@@ -26,8 +26,8 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
 TEST_ITERATIONS=2
 
 clients = []
-START_CLIENT_COUNT = 1
-MAX_CLIENTS = 1
+START_CLIENT_COUNT = 30
+MAX_CLIENTS = 30
 
 LOG_VISUAL=True
 
@@ -60,7 +60,7 @@ class TestClient:
         # Put iteration into the player health field
         struct.pack_into(config.ENDIAN + 'I', self.sample_packet, util.PACKET_RESOURCE_START_INDEX + Player.PACKET_HEALTH_INDEX, int(iteration))
         if LOG_VISUAL:
-            print(self._id, end='', flush=True)
+            print("{} ".format(self._id), end='', flush=True)
         self.sock.sendto(self.sample_packet, UDP_ADDRESS)
         self._t_send = time.process_time()
 
@@ -77,7 +77,7 @@ class TestClient:
         try:
             while True:
                 if LOG_VISUAL:
-                    print(config.TEXT_CYAN + str(self._id) + config.TEXT_ENDC, end='', flush=True)
+                    print(config.TEXT_CYAN + "{} ".format(self._id) + config.TEXT_ENDC, end='', flush=True)
                 data, client_address = self.sock.recvfrom(4096)
                 self._recv_q.put_nowait((data, time.process_time()))
         except Exception as ex:
