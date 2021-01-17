@@ -106,7 +106,7 @@ class Server:
             if self._is_profiling:
                 print(">", end='', flush=True)
             self._data_to_buffer(buffer, data)
-
+            await asyncio.sleep(0.001)
             if self._data_in_q.empty():
                 self._buffer_bank.register_ready(buffer)
                 buffer = await self._buffer_bank.get_empty()
