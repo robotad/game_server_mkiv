@@ -4,6 +4,7 @@ import time
 
 import app.config as config
 import app.util as util
+from app.state.resource import Resource
 from app.state.player.resource import Player
 
 UDP_ADDRESS=("127.0.0.1", 5002)
@@ -63,7 +64,7 @@ class Client:
 
     def send_state_update(self, iteration):
         # Put iteration into the player health field
-        struct.pack_into(config.ENDIAN + 'I', self.sample_packet, 14, int(iteration))
+        struct.pack_into(config.ENDIAN + 'I', self.sample_packet, util.PACKET_RESOURCE_START_INDEX + Player.PACKET_HEALTH_INDEX, int(iteration))
         print("packet({})={}".format(self._id, self.sample_packet))
 
         if LOG_VISUAL:
@@ -87,7 +88,7 @@ class Client:
 
         print("client({}) resource_map={}".format(self._id, resource_map), flush=True)
         if self._id in resource_map:
-            health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], 5)[0]
+            health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], Player.PACKET_HEALTH_INDEX)[0]
             print("health={}".format(health))
             if health == iteration:
                 return True

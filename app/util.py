@@ -15,15 +15,21 @@ PACKET_SIZE = {
 }
 
 
+PACKET_UDPOP_INDEX          = 0
+PACKET_SENDER_ID_INDEX      = 1
+PACKET_SIZE_INDEX           = 5
+PACKET_RESOURCE_START_INDEX = 9
+
+
 def prepare_update_packet(buffer, sender_id, resource_list=None, resource_byte_map=None):
     # buffer[0] - UDP operation
-    buffer[0] = UDPOp.STATE_UPDATE.value
+    buffer[PACKET_UDPOP_INDEX] = UDPOp.STATE_UPDATE.value
 
     # buffer[1-4] - sender id
-    struct.pack_into(config.ENDIAN + 'I', buffer, 1, int(sender_id))
+    struct.pack_into(config.ENDIAN + 'I', buffer, PACKET_SENDER_ID_INDEX, int(sender_id))
 
     # buffer[9+] - resources
-    idx = 9
+    idx = PACKET_RESOURCE_START_INDEX
     if resource_list is not None:
         for resource in resource_list:
             resource.write_bytes(buffer, idx)
@@ -35,17 +41,17 @@ def prepare_update_packet(buffer, sender_id, resource_list=None, resource_byte_m
             idx += len(data)
 
     # buffer[5-8] - resource byte length
-    struct.pack_into(config.ENDIAN + 'I', buffer, 5, idx)
+    struct.pack_into(config.ENDIAN + 'I', buffer, PACKET_SIZE_INDEX, idx)
     return idx
 
 
 def unpack_update(buffer, resource_map):
-    udp_op = buffer[0]
-    sender_id = struct.unpack_from(config.ENDIAN + 'I', buffer, 1)[0]
-    size = struct.unpack_from(config.ENDIAN + 'I', buffer, 5)[0]
+    udp_op = buffer[PACKET_UDPOP_INDEX]
+    sender_id = struct.unpack_from(config.ENDIAN + 'I', buffer, PACKET_SENDER_ID_INDEX)[0]
+    size = struct.unpack_from(config.ENDIAN + 'I', buffer, PACKET_SIZE_INDEX)[0]
 
     print("[{}:".format(sender_id), end='')
-    idx = 9
+    idx = PACKET_RESOURCE_START_INDEX
     while idx < size:
         type = buffer[idx]
         resource_size = PACKET_SIZE[type]
