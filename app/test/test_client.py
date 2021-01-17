@@ -23,6 +23,10 @@ TEST_MISS_TOLERANCE=2.5/100     # Number of rounds where clients do not receive
                                 # before we fail per test iteration
 TEST_ITERATIONS=1
 
+START_CLIENT_COUNT = 10
+MAX_CLIENTS = 15
+clients = []
+
 LOG_VISUAL=True
 
 
@@ -77,7 +81,7 @@ class Client:
             print(config.TEXT_CYAN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
         self._recv_q.put_nowait(data)
 
-    def is_received(self, iteration):
+    def is_received(self, n_clients, iteration):
         resource_map = {}
         if not self._recv_q.empty():
             idx = 0
@@ -86,38 +90,38 @@ class Client:
                 util.unpack_update(data, resource_map)
                 idx += 1
 
-                if self._id in resource_map:
-                    health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], Player.PACKET_HEALTH_INDEX)[0]
-                    if health == iteration:
-                        print(config.TEXT_BLUE + "{}[{}]".format(self._id, idx) + config.TEXT_ENDC + " ", end='', flush=True)
-                        return True
+            n_successes = 0
+            for client_id in resource_map.keys():
+                health = struct.unpack_from(config.ENDIAN + 'I', resource_map[client_id], Player.PACKET_HEALTH_INDEX)[0]
+                if health == iteration:
+                    n_successes += 1
+
+            print(config.TEXT_BLUE + "{}[{}]".format(self._id, (n_successes/n_clients)) + config.TEXT_ENDC + " ", end='', flush=True)
+
+            if n_successes == n_clients:
+                return True
+
         return False
 
 
 loop = asyncio.get_event_loop()
 
 
-clients = []
-start_client_count = 0
-max_clients = 1
-
-
-def add_clients(count):
+async def add_clients(count):
     n = len(clients)
     for i in range(n, n+count):
         # Add another client
         port = 8000 + len(clients)
         client = Client(i, port)
-        coro = loop.create_datagram_endpoint(
-                protocol_factory=lambda: ClientReaderProtocol(client),
-                local_addr=('0.0.0.0', port))
-        loop.run_until_complete(coro)
+        await loop.create_datagram_endpoint(
+            protocol_factory=lambda: ClientReaderProtocol(client),
+            local_addr=('0.0.0.0', port))
 
         # Double attempt to register client, just
         # in case.
         client.register_client()
         clients.append(client)
-        time.sleep(.2)
+        await asyncio.sleep(1)
 
 
 async def send_updates(iteration):
@@ -135,7 +139,7 @@ async def test_iterations(n_iterations):
         await asyncio.sleep(0.010)
 
         for client in clients:
-            if not client.is_received(i):
+            if not client.is_received(len(clients), i):
                 total_misses += 1
 
         if total_misses > 0:
@@ -151,17 +155,17 @@ async def test_iterations(n_iterations):
         return True
 
 
-def normal_test():
+async def normal_test():
     while True:
         # Run this test until we have successfully
         # added up to the max number of clients and
         # updates are st
-        if len(clients) > max_clients:
+        if len(clients) > MAX_CLIENTS:
             break
 
-        add_clients(1)
-        if len(clients) >= start_client_count:
-            if not loop.run_until_complete(test_iterations(TEST_ITERATIONS)):
+        await add_clients(1)
+        if len(clients) >= START_CLIENT_COUNT:
+            if not await test_iterations(TEST_ITERATIONS):
                 print("[x] Error: test failed.")
                 return
 
@@ -171,6 +175,6 @@ def normal_test():
 #         test_iterations(10000, .010, 10000, 0.015)
 #
 #
-add_clients(start_client_count)
-normal_test()
+loop.run_until_complete(add_clients(START_CLIENT_COUNT))
+loop.run_until_complete(normal_test())
 # # perf_test()
