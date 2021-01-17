@@ -94,7 +94,7 @@ class Server:
                     if self._is_profiling:
                         print(config.TEXT_GREEN + client_id + config.TEXT_ENDC, end='', flush=True)
                     self._transport.sendto(self._buffer, client_addr)
-                    print("[{}]".format(self._buffer[0:60]), end='')
+                    # print("[{}]".format(self._buffer[0:60]), end='')
                     await asyncio.sleep(0)
                 self._d_send = time.process_time() - t_start
                 self._t_sent = time.process_time()

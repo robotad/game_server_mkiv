@@ -50,15 +50,15 @@ def unpack_update(buffer, resource_map):
     sender_id = struct.unpack_from(config.ENDIAN + 'I', buffer, PACKET_SENDER_ID_INDEX)[0]
     size = struct.unpack_from(config.ENDIAN + 'I', buffer, PACKET_SIZE_INDEX)[0]
 
-    print("[{}:".format(sender_id), end='')
+    # print("[{}:".format(sender_id), end='')
     idx = PACKET_RESOURCE_START_INDEX
     while idx < size:
         type = buffer[idx]
         resource_size = PACKET_SIZE[type]
         resource_id = struct.unpack_from(config.ENDIAN + 'I', buffer, idx+1)[0]
-        print("{}".format(resource_id), end='', flush=True)
+        # print("{}".format(resource_id), end='', flush=True)
         resource_map[resource_id] = buffer[idx : idx+resource_size]
         idx += resource_size
-    print("]", end='')
+    # print("]", end='')
 
     return udp_op, sender_id, size

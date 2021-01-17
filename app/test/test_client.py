@@ -65,7 +65,7 @@ class Client:
     def send_state_update(self, iteration):
         # Put iteration into the player health field
         struct.pack_into(config.ENDIAN + 'I', self.sample_packet, util.PACKET_RESOURCE_START_INDEX + Player.PACKET_HEALTH_INDEX, int(iteration))
-        print("packet({})={}".format(self._id, self.sample_packet))
+        print("{} ".format(self._id))
 
         if LOG_VISUAL:
             print(self._id, end='', flush=True)
@@ -74,24 +74,23 @@ class Client:
 
     def receive(self, data):
         if LOG_VISUAL:
-            print(config.TEXT_GREEN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
+            print(config.TEXT_CYAN + str(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
         self._recv_q.put_nowait(data)
 
     def is_received(self, iteration):
         resource_map = {}
         if not self._recv_q.empty():
+            idx = 0
             while not self._recv_q.empty():
-                print(config.TEXT_GREEN + "<{}>".format(self._id) + config.TEXT_ENDC + " ", end='', flush=True)
                 data = self._recv_q.get_nowait()
-                print("data({})={}".format(self._id, data[0:60]), end='')
                 util.unpack_update(data, resource_map)
+                idx += 1
 
-        print("client({}) resource_map={}".format(self._id, resource_map), flush=True)
-        if self._id in resource_map:
-            health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], Player.PACKET_HEALTH_INDEX)[0]
-            print("health={}".format(health))
-            if health == iteration:
-                return True
+                if self._id in resource_map:
+                    health = struct.unpack_from(config.ENDIAN + 'I', resource_map[self._id], Player.PACKET_HEALTH_INDEX)[0]
+                    if health == iteration:
+                        print(config.TEXT_BLUE + "{}[{}]".format(self._id, idx) + config.TEXT_ENDC + " ", end='', flush=True)
+                        return True
         return False
 
 
