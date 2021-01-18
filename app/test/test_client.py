@@ -14,7 +14,7 @@ UDP_ADDRESS=("127.0.0.1", 5002)
 # TEST_RECEIVE_TOLERANCE (the time in seconds). Failures here
 # mean clients would *not* get timeley updates from the server
 
-TEST_RECEIVE_PAUSE=1.0          # Seconds to wait after send to check
+TEST_RECEIVE_PAUSE=1.000        # Seconds to wait after send to check
                                 # how long it took to receive. It is long enough
                                 # to receive all data, the clients themselves will factor
                                 # out data that came in too late
@@ -27,7 +27,7 @@ TEST_ITERATIONS=20
 
 clients = []
 START_CLIENT_COUNT = 50
-MAX_CLIENTS = 60
+MAX_CLIENTS = 50
 
 LOG_VISUAL=True
 
@@ -147,11 +147,12 @@ def test_iterations(n_iterations, pause_time, n_allowed_misses):
         print(config.TEXT_RED + str(misses) + config.TEXT_ENDC)
 
     if misses / (n_iterations * len(clients)) > n_allowed_misses:
-        print(config.TEXT_RED + "[x] Error, too many misses: {}".format((misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
+        print(config.TEXT_RED + "[x] Error ({} clients), too many misses: {}".format(len(clients), (misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
         return False
     else:
-        print(config.TEXT_GREEN + "[+] OK, acceptable misses: {}".format((misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
+        print(config.TEXT_GREEN + "[+] OK ({} clients), acceptable misses: {}".format(len(clients), (misses / (n_iterations * len(clients)))*100) + "%" + config.TEXT_ENDC)
         return True
+
 
 def normal_test():
     while True:

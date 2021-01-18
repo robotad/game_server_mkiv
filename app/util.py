@@ -2,6 +2,7 @@ import struct
 
 from enum import Enum
 from app.state.player.resource import Player
+from app.state.projectile.resource import Projectile
 import app.config as config
 
 
@@ -11,7 +12,8 @@ class UDPOp(Enum):
 
 
 PACKET_SIZE = {
-    Player.RESOURCE_TYPE_BYTE: Player.RESOURCE_PACKET_SIZE
+    Player.RESOURCE_TYPE_BYTE: Player.RESOURCE_PACKET_SIZE,
+    Projectile.RESOURCE_TYPE_BYTE: Projectile.RESOURCE_PACKET_SIZE
 }
 
 
